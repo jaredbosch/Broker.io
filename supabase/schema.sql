@@ -8,11 +8,23 @@ create table if not exists documents (
   source_type text,
   storage_path text,
   pipeline text,
-  status text not null default 'pending',
+  status text not null default 'queued',
   parsed_json jsonb,
   created_at timestamptz not null default timezone('utc'::text, now()),
   updated_at timestamptz not null default timezone('utc'::text, now())
 );
+
+create table if not exists extracted_data (
+  id uuid primary key default uuid_generate_v4(),
+  document_id uuid not null references documents(id) on delete cascade,
+  raw_json jsonb not null,
+  text_content text not null,
+  embedding vector(1536),
+  created_at timestamptz not null default timezone('utc'::text, now()),
+  updated_at timestamptz not null default timezone('utc'::text, now())
+);
+
+create index if not exists extracted_data_document_id_idx on extracted_data (document_id);
 
 create table if not exists properties (
   id uuid primary key default uuid_generate_v4(),

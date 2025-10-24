@@ -5,6 +5,8 @@ export interface ReductoPipelineResponse {
   document: unknown;
 }
 
+const REDUCTO_ENDPOINT = "https://api.reducto.ai/v1/parse";
+
 export async function sendToReducto(
   file: File | Blob,
   filename: string,
@@ -17,7 +19,7 @@ export async function sendToReducto(
     form.append("pipeline", pipelineHint);
   }
 
-  const response = await fetch("https://api.reducto.ai/v1/parse", {
+  const response = await fetch(REDUCTO_ENDPOINT, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${REDUCTO_API_KEY}`
@@ -26,23 +28,65 @@ export async function sendToReducto(
   });
 
   if (!response.ok) {
-    throw new Error(`Reducto parsing failed: ${response.status}`);
+    const errorBody = await response.text();
+    throw new Error(
+      `Reducto parsing failed (${response.status}): ${errorBody || response.statusText}`
+    );
+  }
+
+  return response.json();
+}
+
+export async function sendUrlToReducto(
+  fileUrl: string,
+  pipeline: string
+): Promise<ReductoPipelineResponse> {
+  const { REDUCTO_API_KEY } = getEnv();
+
+  const response = await fetch(REDUCTO_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${REDUCTO_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      url: fileUrl,
+      pipeline,
+      schema: pipeline
+    })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `Reducto parsing failed (${response.status}): ${errorBody || response.statusText}`
+    );
   }
 
   return response.json();
 }
 
 export function determinePipeline(mimeType: string, filename: string) {
-  if (mimeType === "text/csv" || filename.toLowerCase().endsWith(".csv")) {
+  const lower = filename.toLowerCase();
+  if (mimeType === "text/csv" || lower.endsWith(".csv")) {
     return "rent_roll_csv_v1";
   }
-  if (mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+  if (
+    mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    lower.endsWith(".xlsx")
+  ) {
     return "financials_excel_v1";
   }
-  if (mimeType === "application/pdf" || filename.toLowerCase().endsWith(".pdf")) {
-    return "offering_memo_pdf_v1";
+  if (mimeType === "application/pdf" || lower.endsWith(".pdf")) {
+    return "offering_memo_om_pipeline";
   }
-  if (mimeType.includes("presentation") || filename.toLowerCase().endsWith(".pptx")) {
+  if (
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    lower.endsWith(".docx")
+  ) {
+    return "offering_memo_om_pipeline";
+  }
+  if (mimeType.includes("presentation") || lower.endsWith(".pptx")) {
     return "marketing_deck_v1";
   }
   return "generic_document_v1";
