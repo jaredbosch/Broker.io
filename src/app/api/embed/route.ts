@@ -1,20 +1,8 @@
 import { NextResponse } from "next/server";
 import { getOpenAIClient } from "@/lib/openai";
 import { getSupabaseClient } from "@/lib/supabase";
+import { flattenJson } from "@/lib/documents";
 import type { Json } from "@/types/supabase";
-
-function flattenDocument(doc: Json): string {
-  if (doc === null) return "";
-  if (typeof doc === "string") return doc;
-  if (typeof doc === "number" || typeof doc === "boolean") return String(doc);
-  if (Array.isArray(doc)) return doc.map(flattenDocument).join("\n");
-  if (typeof doc === "object") {
-    return Object.entries(doc)
-      .map(([key, value]) => `${key}: ${flattenDocument(value)}`)
-      .join("\n");
-  }
-  return "";
-}
 
 function chunkText(text: string, size: number, overlap: number) {
   const chunks: string[] = [];
@@ -50,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Document not found or not parsed" }, { status: 404 });
     }
 
-    const text = flattenDocument(document.parsed_json as Json);
+    const text = flattenJson(document.parsed_json as Json);
     const chunks = chunkText(text, chunkSize, overlap);
 
     if (!chunks.length) {

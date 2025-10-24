@@ -11,23 +11,87 @@ export default function UploadPage() {
   const handleFile = useCallback(async (file: File) => {
     const body = new FormData();
     body.append("file", file);
-    setStage("uploading");
-    setMessage("Sending file to the API");
+    setStage("queued");
+    setMessage("Uploading document to the pipeline");
+
     try {
-      setStage("parsing");
-      setMessage("Running Reducto pipelines");
-      const response = await fetch("/api/parse", {
+      const response = await fetch("/api/upload", {
         method: "POST",
         body
       });
+
       if (!response.ok) {
-        throw new Error(`Failed to parse: ${response.status}`);
+        const text = await response.text();
+        throw new Error(text || `Upload failed with status ${response.status}`);
       }
-      setStage("saving");
-      setMessage("Persisting parsed document to Supabase");
-      const payload = await response.json();
-      setStage("complete");
-      setMessage(`Document ${payload.id ?? ""} parsed and stored in Supabase`);
+
+      if (!response.body) {
+        throw new Error("Upload response did not include a stream");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffered = "";
+      let done = false;
+
+      while (!done) {
+        const { value, done: streamDone } = await reader.read();
+        done = streamDone;
+        buffered += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+
+        let newlineIndex = buffered.indexOf("\n");
+        while (newlineIndex !== -1) {
+          const chunk = buffered.slice(0, newlineIndex).trim();
+          buffered = buffered.slice(newlineIndex + 1);
+          if (chunk) {
+            try {
+              const event = JSON.parse(chunk) as {
+                stage: ParseProgressProps["stage"] | "error";
+                message?: string;
+                documentId?: string;
+              };
+
+              if (event.stage === "error") {
+                setStage("error");
+                setMessage(event.message ?? "Unknown error");
+                await reader.cancel();
+                return;
+              }
+
+              setStage(event.stage);
+              setMessage(event.message);
+
+              if (event.stage === "ingested") {
+                await reader.cancel();
+                return;
+              }
+            } catch (parseError) {
+              console.error("Failed to parse upload progress", parseError);
+            }
+          }
+          newlineIndex = buffered.indexOf("\n");
+        }
+      }
+
+      const finalChunk = buffered.trim();
+      if (finalChunk) {
+        try {
+          const event = JSON.parse(finalChunk) as {
+            stage: ParseProgressProps["stage"] | "error";
+            message?: string;
+            documentId?: string;
+          };
+          if (event.stage === "error") {
+            setStage("error");
+            setMessage(event.message ?? "Unknown error");
+            return;
+          }
+          setStage(event.stage);
+          setMessage(event.message);
+        } catch (parseError) {
+          console.error("Failed to parse upload progress", parseError);
+        }
+      }
     } catch (cause) {
       console.error(cause);
       setStage("error");

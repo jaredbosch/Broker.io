@@ -3,17 +3,16 @@
 import { useEffect, useMemo } from "react";
 
 export interface ParseProgressProps {
-  stage: "idle" | "uploading" | "parsing" | "saving" | "complete" | "error";
+  stage: "idle" | "queued" | "parsing" | "ingested" | "error";
   message?: string;
   onReset?: () => void;
 }
 
 const STAGE_LABELS: Record<ParseProgressProps["stage"], string> = {
   idle: "Awaiting file",
-  uploading: "Uploading",
-  parsing: "Running Reducto pipelines",
-  saving: "Persisting results",
-  complete: "Finished",
+  queued: "Queued",
+  parsing: "Parsing",
+  ingested: "Ingested",
   error: "Error"
 };
 
@@ -21,7 +20,7 @@ export function ParseProgress({ stage, message, onReset }: ParseProgressProps) {
   const statusText = useMemo(() => STAGE_LABELS[stage], [stage]);
 
   useEffect(() => {
-    if (stage === "complete" && onReset) {
+    if (stage === "ingested" && onReset) {
       const id = setTimeout(onReset, 4000);
       return () => clearTimeout(id);
     }

@@ -19,7 +19,7 @@ export interface Database {
           source_type: string | null;
           storage_path: string | null;
           pipeline: string | null;
-          status: "parsed" | "pending" | "failed";
+          status: "queued" | "parsing" | "ingested" | "failed";
           parsed_json: Json | null;
           created_at: string;
           updated_at: string;
@@ -31,7 +31,7 @@ export interface Database {
           source_type?: string | null;
           storage_path?: string | null;
           pipeline?: string | null;
-          status?: "parsed" | "pending" | "failed";
+          status?: "queued" | "parsing" | "ingested" | "failed";
           parsed_json?: Json | null;
           created_at?: string;
           updated_at?: string;
@@ -174,6 +174,27 @@ export interface Database {
           embedding: Vector;
         };
         Update: Partial<Database["public"]["Tables"]["document_embeddings"]["Insert"]>;
+      };
+      extracted_data: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          document_id: string;
+          raw_json: Json;
+          text_content: string;
+          embedding: Vector | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          document_id: string;
+          raw_json: Json;
+          text_content: string;
+          embedding?: Vector | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["extracted_data"]["Insert"]>;
       };
     };
     Functions: {
